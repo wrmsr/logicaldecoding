@@ -26,53 +26,61 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 
-public abstract class Event {
-	
-	private String schemaName;
-	private String tableName;
-	private long transactionId;
-	private ZonedDateTime commitTime;
-	
-	public void setSchemaName(String schemaName) {
-		this.schemaName = schemaName;
-	}
+public abstract class Event
+{
+    private String schemaName;
+    private String tableName;
+    private long transactionId;
+    private ZonedDateTime commitTime;
 
-	public void setTableName(String tableName) {
-		this.tableName = tableName;	
-	}
+    public void setSchemaName(String schemaName)
+    {
+        this.schemaName = schemaName;
+    }
 
-	public void setTransactionId(long transactionId) {
-		this.transactionId = transactionId;
-	}
-	
-	public String getSchemaName() {
-		return schemaName;
-	}
-	
-	public String getTableName() {
-		return tableName;
-	}
-	
-	public long getTransactionId() {
-		return transactionId;
-	}
-	
-	public void setCommitTime(ZonedDateTime commitTime) {
-		this.commitTime = commitTime;
-	}
-	
-	public void setCommitTime(String timestampString) {
-		
-		DateTimeFormatter formatter = new DateTimeFormatterBuilder()
-	    .appendPattern("yyyy-MM-dd HH:mm:ss")
-	    .appendFraction(ChronoField.MICRO_OF_SECOND, 0, 6, true)
-	    .appendPattern("x")
-	    .toFormatter();
-		commitTime = ZonedDateTime.parse(timestampString,formatter);
-	}
-	
-	public ZonedDateTime getCommitTime() {
-		return commitTime;
-	}
-	
+    public void setTableName(String tableName)
+    {
+        this.tableName = tableName;
+    }
+
+    public void setTransactionId(long transactionId)
+    {
+        this.transactionId = transactionId;
+    }
+
+    public String getSchemaName()
+    {
+        return schemaName;
+    }
+
+    public String getTableName()
+    {
+        return tableName;
+    }
+
+    public long getTransactionId()
+    {
+        return transactionId;
+    }
+
+    public void setCommitTime(ZonedDateTime commitTime)
+    {
+        this.commitTime = commitTime;
+    }
+
+    public void setCommitTime(String timestampString)
+    {
+
+        DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+                .appendPattern("yyyy-MM-dd HH:mm:ss")
+                .appendFraction(ChronoField.MICRO_OF_SECOND, 0, 6, true)
+                .appendPattern("x")
+                .toFormatter();
+        commitTime = ZonedDateTime.parse(timestampString, formatter);
+    }
+
+    public ZonedDateTime getCommitTime()
+    {
+        return commitTime;
+    }
 }

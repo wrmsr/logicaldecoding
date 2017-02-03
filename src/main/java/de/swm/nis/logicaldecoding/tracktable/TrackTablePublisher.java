@@ -21,15 +21,13 @@ SOFTWARE.
  */
 package de.swm.nis.logicaldecoding.tracktable;
 
-import java.sql.SQLException;
-import java.sql.Types;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.concurrent.Future;
-
+import com.google.common.base.Joiner;
+import com.vividsolutions.jts.geom.Envelope;
+import com.vividsolutions.jts.geom.GeometryFactory;
+import com.vividsolutions.jts.geom.PrecisionModel;
+import com.vividsolutions.jts.io.WKBWriter;
+import de.swm.nis.logicaldecoding.parser.domain.Cell;
+import de.swm.nis.logicaldecoding.parser.domain.DmlEvent;
 import org.postgresql.util.PGobject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,227 +38,239 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.AsyncResult;
 import org.springframework.stereotype.Repository;
 
-import com.google.common.base.Joiner;
-import com.vividsolutions.jts.geom.Envelope;
-import com.vividsolutions.jts.geom.GeometryFactory;
-import com.vividsolutions.jts.geom.PrecisionModel;
-import com.vividsolutions.jts.io.WKBWriter;
-
-import de.swm.nis.logicaldecoding.parser.domain.Cell;
-import de.swm.nis.logicaldecoding.parser.domain.DmlEvent;
+import java.sql.SQLException;
+import java.sql.Types;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.Future;
 
 /**
  * This class publishes changes into an audit table.
  * Old an new Values of the whole object record are stored in JSONB objects.
- * @author Schmidt.Sebastian2
  *
+ * @author Schmidt.Sebastian2
  */
 @Repository
-public class TrackTablePublisher {
-	
-	private static final Logger log = LoggerFactory.getLogger(TrackTablePublisher.class);
-	
-	@Autowired
-	private JdbcTemplate template;
-	
-	@Value("${tracktable.schemaname}")
-	private String schemaname;
-	
-	@Value("${tracktable.tablename}")
-	private String tableName;
-	
-	@Value("${tracktable.commitTimestampColumn:commit_ts}")
-	private String commitTimestampColumnName;
-	
-	@Value("${tracktable.transactionIdColumn:transaction_id}")
-	private String txIdColumnName;
-	
-	@Value("${tracktable.jsonOldValuesColumn:oldvalues}")
-	private String jsonOldValuesColumnName;
-	
-	@Value("${tracktable.jsonNewValuesColumn:newvalues}")
-	private String jsonNewValuesColumName;
-	
-	@Value("${tracktable.metaInfoColumn:metadata}")
-	private String metadataColumnName;
-	
-	@Value("${tracktable.regionColumn:region}") 
-	private String regionColumnName;
-	
-	@Value("${tracktable.tableColumn:tablename}") 
-	private String tableColumnName;
-	
-	@Value("${tracktable.schemaColumn:schemaname}") 
-	private String schemaColumnName;
-	
-	@Value("${tracktable.transactionTypeColumn:type}") 
-	private String transactionTypeColumnName;
-	
-	@Value("#{'${tracktable.metainfo.searchpatterns}'.split(',')}")
-	private List<String> metaInfoSearchPatterns;
-	
-	@Value("${postgresql.epsgCode}")
-	private int epsgCode;
+public class TrackTablePublisher
+{
+    private static final Logger log = LoggerFactory.getLogger(TrackTablePublisher.class);
 
-	@Value("${pointObjects.miniumSize}")
-	private double minSize=0.00001f;
-	
-	@Value("${pointObjects.buffer}")
-	private double bufferSize=0.0001f;
-	
-	public TrackTablePublisher() {
-		
-	}
-	
-	public TrackTablePublisher(JdbcTemplate template) {
-		this.template = template;
-	}
-	
-	@Async
-	public Future<String> publish(Collection<DmlEvent> events) {
-		log.info("Publishing " + events.size()+" change metadata to track table");
-		for(DmlEvent event:events) {
-			publish(event);
-		}
-		return new AsyncResult<String>("success");
-	}
-	
-	public void publish(DmlEvent event) {
+    @Autowired
+    private JdbcTemplate template;
 
-		String metadata = extractMetadata(event);
-		String changedTableSchema = event.getSchemaName();
-		String changedTableName = event.getTableName();
-		String type = event.getType().toString();
-		Long transactionId = event.getTransactionId();
-		PGobject timestamp = getTimestamp(event);
-		PGobject oldjson = getJsonOldValues(event);
-		PGobject newjson = getJsonNewValues(event);
-		
-		Object[] params;
-		String sql;
-		int[] types;
-		
-		Envelope envelope = event.getEnvelope();
-		if (! envelope.isNull()) {
-			
-			//expand if necessasry
-			if (envelope.getHeight() < minSize  && envelope.getWidth() < minSize) {
-				envelope.expandBy(bufferSize);
-			}
-			
-			//Transform Bounding Box of the change into WKB
-			
-			GeometryFactory geomFactory = new GeometryFactory(new PrecisionModel(), epsgCode);
-			WKBWriter wkbWriter = new WKBWriter(2, true);
-			byte[] wkb = wkbWriter.write(geomFactory.toGeometry(envelope));
-			params = new Object[]{wkb, type, changedTableSchema, changedTableName, transactionId, timestamp, metadata, oldjson, newjson};
-			types = new int[] {Types.BINARY, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.BIGINT, Types.OTHER, Types.VARCHAR, Types.OTHER, Types.OTHER};
-			sql = "INSERT INTO "+schemaname + "." + tableName + "("+regionColumnName
-				+", "+transactionTypeColumnName + ", "+schemaColumnName+", "+tableColumnName+", "+txIdColumnName
-				+", "+commitTimestampColumnName+", "+metadataColumnName+", "+jsonOldValuesColumnName+", "+jsonNewValuesColumName
-				+") VALUES (?,?,?,?,?,?,?,?,?)";
-		}
-		else {
-			//geometry is null, do not include it in SQL insert statement
-			params = new Object[]{type, changedTableSchema, changedTableName, transactionId, timestamp, metadata, oldjson, newjson};
-			types = new int[] {Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.BIGINT, Types.OTHER, Types.VARCHAR, Types.OTHER, Types.OTHER};
-			sql = "INSERT INTO "+schemaname + "." + tableName + "("
-					+transactionTypeColumnName + ", "+schemaColumnName+", "+tableColumnName+", "+txIdColumnName
-					+", "+commitTimestampColumnName+", "+metadataColumnName+", "+jsonOldValuesColumnName+", "+jsonNewValuesColumName
-					+") VALUES (?,?,?,?,?,?,?,?)";
-		}
-		template.update(sql, params,types);
-	}
-	
-	private String extractMetadata(DmlEvent event) {
-		switch(event.getType()) {
-			case delete:
-			{
-				return extractMetadata(event.getOldValues());
-			}
-			default:
-			{
-				return extractMetadata(event.getNewValues());
-			}
-		}
-	}
-	
-	
-	private String extractMetadata(Collection<Cell> cells) {
-		List<String> parts = new ArrayList<String>();
-		for (Cell cell:cells) {
-			for (String pattern:metaInfoSearchPatterns) {
-			if (cell.getName().startsWith(pattern) || cell.getName().endsWith(pattern)) {
-				parts.add(new String(cell.getName() + ": " + cell.getValue()));
-				}
-			}
-		}
-		return Joiner.on(", ").join(parts);
-	}
-	
-	
-	private PGobject getJsonOldValues(DmlEvent event) {
-		if ((event.getType() == DmlEvent.Type.delete) || (event.getType() == DmlEvent.Type.update)) {
-			return getJsonObject(event.getOldValues());
-		}
-		else {
-			return null;
-		}
-	}
-	
-	private PGobject getJsonNewValues(DmlEvent event) {
-		if ((event.getType() == DmlEvent.Type.insert) || (event.getType() == DmlEvent.Type.update)) {
-			return getJsonObject(event.getNewValues());
-		}
-		else {
-			return null;
-		}
-	}
+    @Value("${tracktable.schemaname}")
+    private String schemaname;
 
-	private PGobject getJsonObject(List<Cell> cells) {
-		List<String> parts = new ArrayList<String>();
-		for (Cell cell:cells) {
-			parts.add(cell.getJson());
-		}
-		PGobject pgobject = new PGobject();
-		pgobject.setType("jsonb");
-		try {
-			pgobject.setValue("{" + Joiner.on(", ").join(parts) + "}");
-		} catch (SQLException e) {
-			log.error("Error while setting JSONB of changed Objects into SQL PGobject type:", e);
-		}
-		return pgobject;
-	}
-	
-	private PGobject getTimestamp(DmlEvent event) {
-		PGobject timestamp = new PGobject();
-		timestamp.setType("timestamp");
-		try {
-			ZonedDateTime time = event.getCommitTime();
-			if (time == null) {
-				timestamp.setValue("1970-01-01T00:00:00+00:00");
-				return timestamp;
-			}
-				timestamp.setValue(time.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
-		} catch (SQLException e) {
-			log.error("Error while setting Timestamp SQL PGobject type:", e);
-		}
-		return timestamp;
-	}
-	
-	public int getEpsgCode() {
-		return epsgCode;
-	}
+    @Value("${tracktable.tablename}")
+    private String tableName;
 
-	public void setEpsgCode(int epsgCode) {
-		this.epsgCode = epsgCode;
-	}
+    @Value("${tracktable.commitTimestampColumn:commit_ts}")
+    private String commitTimestampColumnName;
 
-	public List<String> getMetaInfoSearchPatterns() {
-		return metaInfoSearchPatterns;
-	}
+    @Value("${tracktable.transactionIdColumn:transaction_id}")
+    private String txIdColumnName;
 
-	public void setMetaInfoSearchPatterns(List<String> metaInfoSearchPatterns) {
-		this.metaInfoSearchPatterns = metaInfoSearchPatterns;
-	}
+    @Value("${tracktable.jsonOldValuesColumn:oldvalues}")
+    private String jsonOldValuesColumnName;
+
+    @Value("${tracktable.jsonNewValuesColumn:newvalues}")
+    private String jsonNewValuesColumName;
+
+    @Value("${tracktable.metaInfoColumn:metadata}")
+    private String metadataColumnName;
+
+    @Value("${tracktable.regionColumn:region}")
+    private String regionColumnName;
+
+    @Value("${tracktable.tableColumn:tablename}")
+    private String tableColumnName;
+
+    @Value("${tracktable.schemaColumn:schemaname}")
+    private String schemaColumnName;
+
+    @Value("${tracktable.transactionTypeColumn:type}")
+    private String transactionTypeColumnName;
+
+    @Value("#{'${tracktable.metainfo.searchpatterns}'.split(',')}")
+    private List<String> metaInfoSearchPatterns;
+
+    @Value("${postgresql.epsgCode}")
+    private int epsgCode;
+
+    @Value("${pointObjects.miniumSize}")
+    private double minSize = 0.00001f;
+
+    @Value("${pointObjects.buffer}")
+    private double bufferSize = 0.0001f;
+
+    public TrackTablePublisher()
+    {
+
+    }
+
+    public TrackTablePublisher(JdbcTemplate template)
+    {
+        this.template = template;
+    }
+
+    @Async
+    public Future<String> publish(Collection<DmlEvent> events)
+    {
+        log.info("Publishing " + events.size() + " change metadata to track table");
+        for (DmlEvent event : events) {
+            publish(event);
+        }
+        return new AsyncResult<String>("success");
+    }
+
+    public void publish(DmlEvent event)
+    {
+
+        String metadata = extractMetadata(event);
+        String changedTableSchema = event.getSchemaName();
+        String changedTableName = event.getTableName();
+        String type = event.getType().toString();
+        Long transactionId = event.getTransactionId();
+        PGobject timestamp = getTimestamp(event);
+        PGobject oldjson = getJsonOldValues(event);
+        PGobject newjson = getJsonNewValues(event);
+
+        Object[] params;
+        String sql;
+        int[] types;
+
+        Envelope envelope = event.getEnvelope();
+        if (!envelope.isNull()) {
+
+            //expand if necessasry
+            if (envelope.getHeight() < minSize && envelope.getWidth() < minSize) {
+                envelope.expandBy(bufferSize);
+            }
+
+            //Transform Bounding Box of the change into WKB
+
+            GeometryFactory geomFactory = new GeometryFactory(new PrecisionModel(), epsgCode);
+            WKBWriter wkbWriter = new WKBWriter(2, true);
+            byte[] wkb = wkbWriter.write(geomFactory.toGeometry(envelope));
+            params = new Object[] {wkb, type, changedTableSchema, changedTableName, transactionId, timestamp, metadata, oldjson, newjson};
+            types = new int[] {Types.BINARY, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.BIGINT, Types.OTHER, Types.VARCHAR, Types.OTHER, Types.OTHER};
+            sql = "INSERT INTO " + schemaname + "." + tableName + "(" + regionColumnName
+                    + ", " + transactionTypeColumnName + ", " + schemaColumnName + ", " + tableColumnName + ", " + txIdColumnName
+                    + ", " + commitTimestampColumnName + ", " + metadataColumnName + ", " + jsonOldValuesColumnName + ", " + jsonNewValuesColumName
+                    + ") VALUES (?,?,?,?,?,?,?,?,?)";
+        }
+        else {
+            //geometry is null, do not include it in SQL insert statement
+            params = new Object[] {type, changedTableSchema, changedTableName, transactionId, timestamp, metadata, oldjson, newjson};
+            types = new int[] {Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.BIGINT, Types.OTHER, Types.VARCHAR, Types.OTHER, Types.OTHER};
+            sql = "INSERT INTO " + schemaname + "." + tableName + "("
+                    + transactionTypeColumnName + ", " + schemaColumnName + ", " + tableColumnName + ", " + txIdColumnName
+                    + ", " + commitTimestampColumnName + ", " + metadataColumnName + ", " + jsonOldValuesColumnName + ", " + jsonNewValuesColumName
+                    + ") VALUES (?,?,?,?,?,?,?,?)";
+        }
+        template.update(sql, params, types);
+    }
+
+    private String extractMetadata(DmlEvent event)
+    {
+        switch (event.getType()) {
+            case delete: {
+                return extractMetadata(event.getOldValues());
+            }
+            default: {
+                return extractMetadata(event.getNewValues());
+            }
+        }
+    }
+
+    private String extractMetadata(Collection<Cell> cells)
+    {
+        List<String> parts = new ArrayList<String>();
+        for (Cell cell : cells) {
+            for (String pattern : metaInfoSearchPatterns) {
+                if (cell.getName().startsWith(pattern) || cell.getName().endsWith(pattern)) {
+                    parts.add(new String(cell.getName() + ": " + cell.getValue()));
+                }
+            }
+        }
+        return Joiner.on(", ").join(parts);
+    }
+
+    private PGobject getJsonOldValues(DmlEvent event)
+    {
+        if ((event.getType() == DmlEvent.Type.delete) || (event.getType() == DmlEvent.Type.update)) {
+            return getJsonObject(event.getOldValues());
+        }
+        else {
+            return null;
+        }
+    }
+
+    private PGobject getJsonNewValues(DmlEvent event)
+    {
+        if ((event.getType() == DmlEvent.Type.insert) || (event.getType() == DmlEvent.Type.update)) {
+            return getJsonObject(event.getNewValues());
+        }
+        else {
+            return null;
+        }
+    }
+
+    private PGobject getJsonObject(List<Cell> cells)
+    {
+        List<String> parts = new ArrayList<String>();
+        for (Cell cell : cells) {
+            parts.add(cell.getJson());
+        }
+        PGobject pgobject = new PGobject();
+        pgobject.setType("jsonb");
+        try {
+            pgobject.setValue("{" + Joiner.on(", ").join(parts) + "}");
+        }
+        catch (SQLException e) {
+            log.error("Error while setting JSONB of changed Objects into SQL PGobject type:", e);
+        }
+        return pgobject;
+    }
+
+    private PGobject getTimestamp(DmlEvent event)
+    {
+        PGobject timestamp = new PGobject();
+        timestamp.setType("timestamp");
+        try {
+            ZonedDateTime time = event.getCommitTime();
+            if (time == null) {
+                timestamp.setValue("1970-01-01T00:00:00+00:00");
+                return timestamp;
+            }
+            timestamp.setValue(time.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+        }
+        catch (SQLException e) {
+            log.error("Error while setting Timestamp SQL PGobject type:", e);
+        }
+        return timestamp;
+    }
+
+    public int getEpsgCode()
+    {
+        return epsgCode;
+    }
+
+    public void setEpsgCode(int epsgCode)
+    {
+        this.epsgCode = epsgCode;
+    }
+
+    public List<String> getMetaInfoSearchPatterns()
+    {
+        return metaInfoSearchPatterns;
+    }
+
+    public void setMetaInfoSearchPatterns(List<String> metaInfoSearchPatterns)
+    {
+        this.metaInfoSearchPatterns = metaInfoSearchPatterns;
+    }
 }

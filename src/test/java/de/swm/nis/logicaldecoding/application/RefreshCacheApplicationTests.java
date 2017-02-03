@@ -21,19 +21,18 @@ SOFTWARE.
  */
 package de.swm.nis.logicaldecoding.application;
 
+import de.swm.nis.logicaldecoding.RefreshCacheApplication;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import de.swm.nis.logicaldecoding.RefreshCacheApplication;
-
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringBootTest(classes = RefreshCacheApplication.class)
-public class RefreshCacheApplicationTests {
-
-	@Test
-	public void contextLoads() {
-	}
-	
+public class RefreshCacheApplicationTests
+{
+    @Test
+    public void contextLoads()
+    {
+    }
 }
