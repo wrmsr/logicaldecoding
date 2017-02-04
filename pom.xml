@@ -11,6 +11,13 @@
     <name>LogicalDecoding</name>
     <description>Reads PostgreSQL Logical Decoded logs, writes changesets to databases and invalidates GeoWebCache accordingly</description>
 
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>1.4.0.RELEASE</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+
     <licenses>
         <license>
             <name>MIT</name>
@@ -18,13 +25,6 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
-
-    <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>1.4.0.RELEASE</version>
-        <relativePath/> <!-- lookup parent from repository -->
-    </parent>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

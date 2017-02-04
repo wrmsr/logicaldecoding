@@ -52,10 +52,8 @@ public class ChangeSetFetcher
 
     public List<ChangeSetDAO> fetch(String slotname, int maxRows)
     {
-
         RowMapper<ChangeSetDAO> changeSetRowMapper = new RowMapper<ChangeSetDAO>()
         {
-
             @Override
             public ChangeSetDAO mapRow(ResultSet rs, int rowNum)
                     throws SQLException

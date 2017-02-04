@@ -157,17 +157,17 @@ public class RefreshCacheService
                     Thread.sleep(10);
                 }
                 catch (InterruptedException e) {
-                    log.warn("InterruptedExcepton during waiting of completion of Tasks", e);
+                    log.warn("InterruptedException during waiting of completion of Tasks", e);
                 }
             }
             try {
                 publishing.get();
             }
             catch (InterruptedException e) {
-                log.warn("InterruptedExcepton during excecution of 'publishing' Task", e);
+                log.warn("InterruptedException during excecution of 'publishing' Task", e);
             }
             catch (ExecutionException e) {
-                log.warn("Exception occurrred during execution of 'publishing' Task.", e);
+                log.warn("Exception occurred during execution of 'publishing' Task.", e);
             }
         }
 
@@ -178,17 +178,17 @@ public class RefreshCacheService
                     Thread.sleep(10);
                 }
                 catch (InterruptedException e) {
-                    log.warn("InterruptedExcepton during waiting of completion of Tasks", e);
+                    log.warn("InterruptedException during waiting of completion of Tasks", e);
                 }
             }
             try {
                 seeding.get();
             }
             catch (InterruptedException e) {
-                log.warn("InterruptedExcepton during excecution of 'seeding' Task", e);
+                log.warn("InterruptedException during excecution of 'seeding' Task", e);
             }
             catch (ExecutionException e) {
-                log.warn("Exception occurrred during execution of 'seeding' Task.", e);
+                log.warn("Exception ocurrred during execution of 'seeding' Task.", e);
             }
         }
     }

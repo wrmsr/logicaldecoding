@@ -164,10 +164,10 @@ public class Cell
 
     public String getJson()
     {
-        String jsonKey = new String("\"" + getName() + "\": ");
-        String jsonValue = new String(getValue());
+        String jsonKey = "\"" + getName() + "\": ";
+        String jsonValue = getValue();
         if (getType().isQuotedInJson()) {
-            jsonValue = new String("\"" + getValue() + "\"");
+            jsonValue = "\"" + getValue() + "\"";
         }
         if (getValue().equals("null")) {
             jsonValue = "null";

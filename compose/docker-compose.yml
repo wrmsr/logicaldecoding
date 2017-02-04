@@ -1,0 +1,9 @@
+version: '2'
+
+services:
+
+  logicaldecoding-test-postgres:
+    image: postgres:9.6.1
+    container_name: logicaldecoding
+    ports:
+      - 9109:5432

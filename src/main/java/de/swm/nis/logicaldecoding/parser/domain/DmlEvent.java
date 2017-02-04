@@ -61,7 +61,6 @@ public class DmlEvent
 
     public Envelope getEnvelope()
     {
-
         try {
             Envelope envelope = new Envelope();
             for (Cell cell : getOldValues()) {

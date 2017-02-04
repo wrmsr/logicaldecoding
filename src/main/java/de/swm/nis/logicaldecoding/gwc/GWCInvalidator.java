@@ -98,7 +98,6 @@ public class GWCInvalidator
     @Async
     public Future<String> postSeedRequests(Collection<DmlEvent> rows)
     {
-
         log.debug("Calculating affected Regions...");
         Collection<Envelope> envelopes = findAffectedRegion(rows);
         log.info("sending " + envelopes.size() + " Seed Requests to geoWebCache...");
@@ -106,12 +105,11 @@ public class GWCInvalidator
             log.debug("Envelope: " + env.toString());
             postSeedRequest(env);
         }
-        return new AsyncResult<String>("Success");
+        return new AsyncResult<>("Success");
     }
 
     private void postSeedRequest(Envelope envelope)
     {
-
         String gwcurl = gwcBaseUrl + "seed/" + layername + ".json";
 
         Bounds bounds = new Bounds(new Coordinates(envelope.getMinX(), envelope.getMinY(), envelope.getMaxX(),
@@ -120,7 +118,7 @@ public class GWCInvalidator
         SeedRequest request = new SeedRequest(layername, bounds, srs, zoomStart, zoomStop, imageFormat, operation,
                 numThreads);
 
-        HttpEntity<GwcSeedDAO> httpentity = new HttpEntity<GwcSeedDAO>(new GwcSeedDAO(request), createHeaders(
+        HttpEntity<GwcSeedDAO> httpentity = new HttpEntity<>(new GwcSeedDAO(request), createHeaders(
                 gwcUserName, gwcPassword));
         ResponseEntity response = template.exchange(gwcurl, HttpMethod.POST, httpentity, String.class);
         HttpStatus returncode = response.getStatusCode();
@@ -128,13 +126,13 @@ public class GWCInvalidator
             log.warn("HTTP Call to " + gwcurl + " was not successfull, Status code: " + response.getStatusCode());
         }
         else {
-            log.debug("HTTP Call to " + gwcurl + "succeeded");
+            log.debug("HTTP Call to " + gwcurl + " succeeded");
         }
     }
 
     private Collection<Envelope> findAffectedRegion(Collection<DmlEvent> rows)
     {
-        Collection<Envelope> envelopes = new ArrayList<Envelope>();
+        Collection<Envelope> envelopes = new ArrayList<>();
         for (DmlEvent row : rows) {
             if (row != null) {
                 envelopes.add(row.getEnvelope());
